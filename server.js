@@ -8,9 +8,15 @@ const app = express()
 const PORT = process.env.PORT || 8080
 const clients = []
 
+const whitelist = ['https://kimpro.site', 'http://localhost:3000', 'http://localhost:3001']
 const corsOptions = {
-  origin: 'https://kimpro.site',
-  optionsSuccessStatus: 200,
+  origin: function (origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not Allowed Origin!'))
+    }
+  },
 }
 
 app.use(cors(corsOptions))
