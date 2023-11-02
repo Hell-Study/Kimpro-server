@@ -70,7 +70,7 @@ app.get('/exchange-rate', (req, res) => {
   })
 })
 
-setInterval(fetchData, 60000)
+setInterval(fetchData, 40000)
 
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`)
