@@ -40,7 +40,7 @@ const fetchData = async () => {
   isFetching = false
 }
 
-app.get('/api/exchange-rate', (req, res) => {
+app.get('/exchange-rate', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
