@@ -1,12 +1,20 @@
 const express = require('express')
 const { investing } = require('investing-com-api')
 const cors = require('cors')
+const morgan = require('morgan')
+require('dotenv').config()
 
 const app = express()
-const PORT = 8080
+const PORT = process.env.PORT
 const clients = []
 
-app.use(cors())
+const corsOptions = {
+  origin: 'https://kimpro.site',
+  optionsSuccessStatus: 200,
+}
+
+app.use(cors(corsOptions))
+app.use(morgan('combined'))
 
 let lastData = null
 let isFetching = false
@@ -17,7 +25,7 @@ const fetchData = async () => {
   isFetching = true
 
   try {
-    const allData = await investing('currencies/usd-krw', 'P1D', 'PT1M', undefined, {
+    const allData = await investing('currencies/usd-krw', 'P1D', 'PT1M', 60, {
       headless: 'true',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
       ignoreHTTPSErrors: true,
@@ -50,6 +58,7 @@ app.get('/exchange-rate', (req, res) => {
 
   if (lastData) {
     res.write(`data: ${JSON.stringify(lastData)}\n\n`)
+    console.log(`Client connected, total clients: ${clients.length}`)
   }
 
   req.on('close', () => {
@@ -57,11 +66,13 @@ app.get('/exchange-rate', (req, res) => {
     if (index !== -1) {
       clients.splice(index, 1)
     }
+    console.log(`Client disconnected, total clients: ${clients.length}`)
   })
 })
 
 setInterval(fetchData, 60000)
 
 app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`)
   fetchData()
 })
