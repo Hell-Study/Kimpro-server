@@ -1,21 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const { addClient } = require("../services/exchangeRateService");
+const exchangeRateService = require("../services/exchangeRateService");
 
-router.get("/", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
+router.get("/", (req, res) => {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
 
   const clientId = Date.now();
-  const newClient = {
-    id: clientId,
-    response: res,
-  };
+  const newClient = { id: clientId, response: res };
 
-  // 클라이언트 추가
-  addClient(newClient);
+  exchangeRateService.addClient(newClient);
 });
 
 module.exports = router;

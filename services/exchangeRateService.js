@@ -1,65 +1,100 @@
 const { investing } = require("investing-com-api");
+const logger = require("../utils/logger");
 
-let lastData = null;
-let clients = [];
-let isFetching = false;
+const FETCH_INTERVAL = 60000;
 
-const fetchData = async () => {
-  if (isFetching) return;
+class ExchangeRateService {
+  constructor() {
+    this.lastData = null;
+    this.clients = new Set();
+    this.isFetching = false;
+    this.lastFetchTime = 0;
+  }
 
-  isFetching = true;
+  async fetchData() {
+    const now = Date.now();
+    if (this.isFetching || now - this.lastFetchTime < FETCH_INTERVAL) return;
 
-  try {
-    const allData = await investing("currencies/usd-krw", "P1D", "PT1M", 60, {
-      headless: "true",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
-      ignoreHTTPSErrors: true,
-    });
+    this.isFetching = true;
+    this.lastFetchTime = now;
 
-    if (!allData || !Array.isArray(allData) || allData.length === 0) {
-      console.error("Invalid or empty data received");
-      isFetching = false;
-      return;
-    }
-
-    const latestData = allData[allData.length - 1];
-    if (!lastData || latestData.price_close !== lastData.price_close) {
-      clients.forEach((client) => {
-        client.response.write(`data: ${JSON.stringify(latestData)}\n\n`);
+    try {
+      const allData = await investing("currencies/usd-krw", "P1D", "PT1M", 60, {
+        headless: "true",
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+        ],
+        ignoreHTTPSErrors: true,
       });
-      lastData = latestData;
+
+      if (!allData || !Array.isArray(allData) || allData.length === 0) {
+        logger.error("Invalid or empty data received");
+        return;
+      }
+
+      const latestData = allData[allData.length - 1];
+      if (
+        !this.lastData ||
+        latestData.price_close !== this.lastData.price_close
+      ) {
+        this.broadcastToClients(latestData);
+        this.lastData = latestData;
+      }
+    } catch (err) {
+      logger.error("Error fetching data:", err);
+      this.broadcastError(err.message);
+
+      setTimeout(() => this.fetchData(), 5000);
+    } finally {
+      this.isFetching = false;
     }
-  } catch (err) {
-    console.error(err);
-    clients.forEach((client) => {
-      client.response.write(`error: ${err.message}\n\n`);
-    });
-  } finally {
-    isFetching = false;
-  }
-};
-
-const addClient = (client) => {
-  clients.push(client);
-  // 첫 연결 시 lastData가 있으면 즉시 데이터 전송
-  if (lastData) {
-    client.response.write(`data: ${JSON.stringify(lastData)}\n\n`);
   }
 
-  // 클라이언트 연결 종료 시 배열에서 제거
-  client.response.on("close", () => {
-    clients = clients.filter((c) => c.id !== client.id);
-    console.log(`Client ${client.id} disconnected`);
-  });
-};
+  broadcastToClients(data) {
+    for (const client of this.clients) {
+      client.response.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  }
 
-// 첫 실행 및 주기적 데이터 업데이트
-fetchData();
-setInterval(fetchData, 40000);
+  broadcastError(message) {
+    for (const client of this.clients) {
+      client.response.write(`error: ${message}\n\n`);
+    }
+  }
 
-module.exports = { addClient };
+  addClient(client) {
+    this.clients.add(client);
+    if (this.lastData) {
+      client.response.write(`data: ${JSON.stringify(this.lastData)}\n\n`);
+    } else {
+      // 데이터가 없으면 즉시 가져오기
+      this.fetchData();
+    }
+
+    const closeListener = () => {
+      this.clients.delete(client);
+      logger.info(
+        `Client ${client.id} disconnected. Total clients: ${this.clients.size}`
+      );
+      client.response.removeListener("close", closeListener);
+    };
+    client.response.on("close", closeListener);
+  }
+
+  getClientsCount() {
+    return this.clients.size;
+  }
+
+  startFetching() {
+    this.fetchData();
+    setInterval(() => this.fetchData(), FETCH_INTERVAL);
+  }
+}
+
+const exchangeRateService = new ExchangeRateService();
+exchangeRateService.startFetching();
+
+module.exports = exchangeRateService;
