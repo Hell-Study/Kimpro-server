@@ -15,8 +15,7 @@ class ExchangeRateService extends EventEmitter {
       const result = await yahooFinance.quote(this.symbol);
       const rate = {
         date: new Date(),
-        rate: result.regularMarketPrice,
-        price_close: result.regularMarketPrice,
+        value: result.regularMarketPrice,
       };
 
       if (!this.lastRate || rate.rate !== this.lastRate.rate) {
