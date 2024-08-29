@@ -18,7 +18,7 @@ class ExchangeRateService extends EventEmitter {
         value: result.regularMarketPrice,
       };
 
-      if (!this.lastRate || rate.rate !== this.lastRate.rate) {
+      if (!this.lastRate || rate.value !== this.lastRate.value) {
         this.lastRate = rate;
         this.emit("newRate", rate);
       }
